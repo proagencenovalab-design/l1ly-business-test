@@ -2,9 +2,12 @@ import os
 import random
 import re
 import requests
+from openai import OpenAI
 
-OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:14b")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.5")
+
+openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
 WHOP_STARTER_LINK = os.getenv("WHOP_STARTER_LINK", "https://whop.com/ton-pack-starter")
 WHOP_PREMIUM_LINK = os.getenv("WHOP_PREMIUM_LINK", "https://whop.com/ton-pack-premium")
@@ -742,27 +745,18 @@ def clean_reply(reply):
     return reply
 
 
-def call_ollama(prompt):
-    payload = {
-        "model": OLLAMA_MODEL,
-        "prompt": prompt,
-        "stream": False,
-        "options": {
-            "temperature": 0.88,
-            "top_p": 0.85,
-            "num_predict": 35
-        }
-    }
+def call_openai(prompt):
+    if not OPENAI_API_KEY:
+        raise RuntimeError("OPENAI_API_KEY manquant. Ajoute-le dans Railway Variables.")
 
-    response = requests.post(
-        f"{OLLAMA_URL}/api/generate",
-        json=payload,
-        timeout=90
+    response = openai_client.responses.create(
+        model=OPENAI_MODEL,
+        input=prompt,
+        max_output_tokens=80,
+        temperature=0.85
     )
 
-    response.raise_for_status()
-    data = response.json()
-    return clean_reply(data.get("response", "").strip())
+    return clean_reply(response.output_text)
 
 
 # ==========================================================
@@ -820,9 +814,9 @@ def generate_lily_reply(user, message, history=None):
         prompt = build_prompt(temp_user, stage, client_type, message, history=history)
 
         try:
-            reply = call_ollama(prompt)
+            reply = call_openai(prompt)
         except Exception as e:
-            print("Erreur Ollama:", e)
+            print("Erreur OpenAI:", e)
             reply = contextual_fallback_reply(user, message, stage, language)
 
     return {
