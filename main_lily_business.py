@@ -32,7 +32,7 @@ def telegram_post(method, payload):
 def get_updates(offset=None, timeout=50):
     params = {
         "timeout": timeout,
-        "allowed_updates": ["business_message", "message", "business_connection"]
+        "allowed_updates": ["message", "business_message", "business_connection"]
     }
 
     if offset is not None:
@@ -48,6 +48,15 @@ def get_updates(offset=None, timeout=50):
     return response.json()
 
 
+def send_normal_message(chat_id, text):
+    payload = {
+        "chat_id": chat_id,
+        "text": text,
+        "disable_web_page_preview": True
+    }
+    return telegram_post("sendMessage", payload)
+
+
 def send_business_message(chat_id, text, business_connection_id):
     payload = {
         "chat_id": chat_id,
@@ -55,19 +64,18 @@ def send_business_message(chat_id, text, business_connection_id):
         "business_connection_id": business_connection_id,
         "disable_web_page_preview": True
     }
-
     return telegram_post("sendMessage", payload)
 
 
-def handle_business_message(update):
-    message = update.get("business_message")
-
-    if not message:
-        return
-
+def process_message(message, is_business=False):
     text = message.get("text", "")
 
     if not text:
+        return
+
+    # Ignore Telegram commands in normal bot chat except /start.
+    # /start is useful for testing.
+    if text.startswith("/") and text.strip() != "/start":
         return
 
     chat = message.get("chat", {})
@@ -76,7 +84,7 @@ def handle_business_message(update):
     chat_id = str(chat.get("id"))
     business_connection_id = message.get("business_connection_id")
 
-    if not chat_id or not business_connection_id:
+    if not chat_id:
         return
 
     username = chat.get("username") or sender.get("username") or ""
@@ -85,6 +93,7 @@ def handle_business_message(update):
     print("\n==============================", flush=True)
     print(f"Message reçu : {text}", flush=True)
     print(f"De : {username or first_name or chat_id}", flush=True)
+    print(f"Mode : {'business' if is_business else 'normal'}", flush=True)
     print("==============================", flush=True)
 
     user = get_or_create_user(
@@ -93,13 +102,16 @@ def handle_business_message(update):
         first_name=first_name
     )
 
-    save_message(chat_id, "user", text)
+    # If the user sends /start in normal bot mode, turn it into a natural opener.
+    clean_text = "hey" if text.strip() == "/start" else text
+
+    save_message(chat_id, "user", clean_text)
 
     history = get_recent_messages(chat_id, limit=20)
 
     print("HISTORY:", history, flush=True)
 
-    result = generate_lily_reply(user, text, history=history)
+    result = generate_lily_reply(user, clean_text, history=history)
 
     print(f"Stage : {result['stage']}", flush=True)
     print(f"Type client : {result['client_type']}", flush=True)
@@ -110,18 +122,24 @@ def handle_business_message(update):
 
     time.sleep(int(result["delay"]))
 
-    tg_response = send_business_message(
-        chat_id=chat_id,
-        text=result["reply"],
-        business_connection_id=business_connection_id
-    )
+    if is_business and business_connection_id:
+        tg_response = send_business_message(
+            chat_id=chat_id,
+            text=result["reply"],
+            business_connection_id=business_connection_id
+        )
+    else:
+        tg_response = send_normal_message(
+            chat_id=chat_id,
+            text=result["reply"]
+        )
 
     print(f"Réponse Telegram: {tg_response}", flush=True)
 
     save_message(chat_id, "assistant", result["reply"])
 
     old_summary = user.get("summary") or ""
-    new_summary = (old_summary + f"\nClient: {text}\nLily: {result['reply']}").strip()
+    new_summary = (old_summary + f"\nClient: {clean_text}\nLily: {result['reply']}").strip()
 
     if len(new_summary) > 1800:
         new_summary = new_summary[-1800:]
@@ -132,11 +150,23 @@ def handle_business_message(update):
         client_type=result["client_type"],
         interest_score=result["interest_score"],
         age_confirmed=result["age_confirmed"],
-        last_message=text,
+        last_message=clean_text,
         summary=new_summary,
         username=username,
         first_name=first_name
     )
+
+
+def handle_business_message(update):
+    message = update.get("business_message")
+    if message:
+        process_message(message, is_business=True)
+
+
+def handle_normal_message(update):
+    message = update.get("message")
+    if message:
+        process_message(message, is_business=False)
 
 
 def main():
@@ -145,7 +175,7 @@ def main():
     init_db()
 
     print("Agent Lily Business lancé.", flush=True)
-    print("En attente de messages Telegram Business...", flush=True)
+    print("En attente de messages Telegram Business + messages normaux...", flush=True)
 
     offset = None
 
@@ -158,15 +188,20 @@ def main():
                 time.sleep(5)
                 continue
 
-            for update in data.get("result", []):
+            updates = data.get("result", [])
+
+            for update in updates:
                 offset = update["update_id"] + 1
+
+                if "business_connection" in update:
+                    connection = update.get("business_connection", {})
+                    print("Business connection reçue:", connection, flush=True)
 
                 if "business_message" in update:
                     handle_business_message(update)
 
-                elif "business_connection" in update:
-                    connection = update.get("business_connection", {})
-                    print("Business connection reçue:", connection, flush=True)
+                elif "message" in update:
+                    handle_normal_message(update)
 
         except KeyboardInterrupt:
             print("Arrêt manuel.", flush=True)
