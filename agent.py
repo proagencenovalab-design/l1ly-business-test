@@ -338,19 +338,19 @@ def deterministic_reply(user, message, stage, language):
 
     if any(x in msg for x in ["what u mean", "what you mean", "wdym", "what do you mean"]):
         return random.choice([
-            "i mean what you liked about me",
-            "haha i was just teasing",
-            "i mean you came in bold",
-            "i was wondering what caught you"
+            "i mean what caught your eye?",
+            "like… what made you text me?",
+            "haha i’m asking what you liked",
+            "i mean why’d you come here?"
         ])
 
     if msg in ["i did", "yes", "yeah", "yep", "i am", "i'm", "im", "ok", "okay", "sure", "done", "cool", "bet", "lol"]:
         if "whop" in summary or "pack" in summary:
             return random.choice([
-                "good",
-                "cute",
-                "i knew you would look",
-                "be honest, you're curious now"
+                "did it open?",
+                "what did you see?",
+                "be honest, what caught your eye?",
+                "did it work?"
             ])
 
         if msg in ["i am", "i'm", "im"]:
@@ -365,8 +365,8 @@ def deterministic_reply(user, message, stage, language):
         return random.choice([
             "cute",
             "go on",
-            "i like that",
-            "thought so"
+            "tell me more",
+            "oh yeah?"
         ])
 
     if any(x in msg for x in [
@@ -378,7 +378,7 @@ def deterministic_reply(user, message, stage, language):
             "you’re sweet",
             "careful, i might believe you",
             "smooth lol",
-            "smooth lol",
+            "you always talk like that?",
             "that was cute",
             "you’re making me smile"
         ])
@@ -399,7 +399,7 @@ def deterministic_reply(user, message, stage, language):
                 "you’re wild lol",
                 "straight to that already?",
                 "you’re bold",
-                "you're trouble already"
+                "what do you wanna see so bad?"
             ])
 
         if private_count <= 3:
@@ -430,9 +430,9 @@ def fallback_reply(stage, language="english"):
         if stage == "blocked":
             return "Je continue pas sur ce sujet."
         if stage == "relation":
-            return random.choice(["t’es mignon toi", "tu rentres fort lol", "j’aime bien ton énergie"])
+            return random.choice(["t’es venu d’où toi ?", "tu m’as trouvée comment ?", "qu’est-ce qui t’a attiré ?"])
         if stage == "qualification":
-            return random.choice(["t’as l’air bien posé", "je vois le genre lol", "toi t’es dangereux"])
+            return random.choice(["tu fais quoi là ?", "t’es posé tranquille ?", "t’es seul là ?"])
         if stage == "teasing":
             return random.choice(["t’es direct toi lol", "cute ou plus risqué ?", "je montre pas tout ici babe"])
         if stage == "offer":
@@ -450,12 +450,12 @@ def fallback_reply(stage, language="english"):
         return random.choice([
             "you’re sweet",
             "smooth lol",
-            "i like your energy",
-            "smooth lol",
-            "you came in confident"
+            "what caught your eye?",
+            "you always talk like that?",
+            "tell me something then"
         ])
     if stage == "qualification":
-        return random.choice(["you seem relaxed", "i can tell you're comfortable", "dangerous mood tonight"])
+        return random.choice(["what are you doing rn?", "you alone right now?", "just chilling?"])
     if stage == "teasing":
         return random.choice(["you’re bold", "cute one or risky one?", "i don’t show everything here babe"])
     if stage == "offer":
@@ -485,8 +485,8 @@ def contextual_fallback_reply(user, message, stage, language="english"):
         return random.choice([
             "heyy",
             "hey you",
-            "you came to see me",
-            "i was wondering when you'd text"
+            "you came to see me?",
+            "what made you text me?"
         ])
 
     if any(x in msg for x in ["i am", "i'm", "im"]):
@@ -500,8 +500,8 @@ def contextual_fallback_reply(user, message, stage, language="english"):
     if stage == "relation":
         return random.choice([
             "tell me more",
-            "i like that",
-            "smooth lol",
+            "what made you say that?",
+            "you always this smooth?",
             "go on then"
         ])
 
@@ -512,24 +512,9 @@ def contextual_fallback_reply(user, message, stage, language="english"):
 # PROMPT
 # ==========================================================
 
-def build_prompt(user, stage, client_type, user_message, history=None):
+def build_prompt(user, stage, client_type, user_message):
     language = detect_language(user_message)
     goal = choose_conversation_goal(user, user_message, stage)
-
-    history_text = ""
-    if history:
-        for msg in history[-20:]:
-            role = msg.get("role", "")
-            content = (msg.get("content") or "").strip()
-            if not content:
-                continue
-            if role == "user":
-                history_text += f"User: {content}\n"
-            else:
-                history_text += f"Lily: {content}\n"
-
-    if not history_text:
-        history_text = "No recent conversation yet."
 
     if language == "french":
         language_rule = """
@@ -571,20 +556,6 @@ Human texting style:
 - Do not over-explain.
 - Do not sound like ChatGPT.
 
-CRITICAL NATURAL RULES:
-- Do not behave like an interview.
-- Most replies should contain ZERO questions.
-- Never ask a question if Lily already asked one in the recent conversation.
-- Never ask the same question twice.
-- React to what he just said before thinking about selling.
-- If the user gives information, comment on it instead of asking more.
-- Prefer reactions, teasing, and playful statements.
-- Use questions only when they are truly useful.
-- Target ratio: 70% reaction, 20% teasing, 10% questions.
-- Do not ask "what made you message me" if he already gave any reason.
-- Do not ask "where did you find me" if the source is already known or irrelevant.
-- Do not ask "you alone" or "what are you doing" repeatedly.
-
 Banned weak replies:
 - "Oh my"
 - "such playful thoughts"
@@ -607,16 +578,16 @@ Conversation goal: {goal}
 Goal instructions:
 - clarify_playfully: explain casually, do not sell.
 - continue_naturally: respond like a real person, not a seller.
-- ask_what_caught_eye: react first; only ask what caught his attention if it was not already discussed.
+- ask_what_caught_eye: ask what caught his attention.
 - receive_compliment: accept the compliment playfully, do not sell.
 - tease_photo_type: ask if he means cute, risky, soft, or private.
 - tease_no_link: tease only, no payment link.
-- qualify_desire: tease and make him chase; ask what he wants only if no similar question was asked recently.
+- qualify_desire: ask what he wants to see, no link yet.
 - offer_pack: offer a pack briefly, no corporate wording.
 - refuse_free_softly: refuse free content lightly, then redirect.
-- build_relation: react first, tease second, question only if useful.
-- qualify_availability: prefer a playful statement; ask about availability only if it feels natural and was not asked recently.
-- tease_and_pull: tease, then make him chase a little; avoid question loops.
+- build_relation: ask one simple personal question.
+- qualify_availability: ask if he is chilling/free.
+- tease_and_pull: tease, then make him chase a little.
 
 Sales strategy:
 - Your goal is to sell, but it must feel like chatting first.
@@ -661,9 +632,6 @@ Message count: {user["message_count"]}
 
 Client memory summary:
 {user["summary"]}
-
-Recent conversation:
-{history_text}
 
 Client message:
 {user_message}
@@ -754,111 +722,6 @@ def call_ollama(prompt):
     return clean_reply(data.get("response", "").strip())
 
 
-
-def recent_lily_asked_question(history, lookback=4):
-    if not history:
-        return False
-    recent = history[-lookback:]
-    for msg in recent:
-        if msg.get("role") != "assistant":
-            continue
-        content = (msg.get("content") or "").strip()
-        if "?" in content:
-            return True
-    return False
-
-
-def is_too_similar_to_recent(reply, history, lookback=8):
-    if not reply or not history:
-        return False
-    r = reply.lower().strip().replace("?", "").replace("!", "")
-    for msg in history[-lookback:]:
-        if msg.get("role") != "assistant":
-            continue
-        old = (msg.get("content") or "").lower().strip().replace("?", "").replace("!", "")
-        if not old:
-            continue
-        if r == old:
-            return True
-        if len(r) > 10 and (r in old or old in r):
-            return True
-    return False
-
-
-def soften_question_loop(reply, message, history, language="english"):
-    """Avoids the bot sounding like an interview."""
-    reply = clean_reply(reply)
-    msg = (message or "").lower()
-
-    if not reply:
-        return contextual_fallback_reply({"age_confirmed": 1, "summary": ""}, message, "relation", language)
-
-    question_count = reply.count("?")
-    asked_recently = recent_lily_asked_question(history)
-
-    banned_question_fragments = [
-        "what made you message", "where did you find", "what caught your eye",
-        "what are you doing", "you alone", "texting me from bed", "just chilling",
-        "what do you wanna see", "what do you want to see", "what kind"
-    ]
-
-    lowered = reply.lower()
-    bad_question = any(x in lowered for x in banned_question_fragments)
-
-    if question_count == 0 and not is_too_similar_to_recent(reply, history):
-        return reply
-
-    # If Lily just asked a question, force a reaction/statement.
-    if asked_recently or bad_question or question_count > 1 or is_too_similar_to_recent(reply, history):
-        if language == "french":
-            alternatives = [
-                "t’es direct toi lol",
-                "au moins t’es honnête",
-                "j’aime bien ton énergie",
-                "toi t’es dangereux lol",
-                "je vois le genre"
-            ]
-        else:
-            if any(x in msg for x in ["horny", "hard", "turned on", "sexy", "hot"]):
-                alternatives = [
-                    "haha at least you're honest",
-                    "you're trouble already",
-                    "well that's one way to start",
-                    "i can tell you're bold",
-                    "dangerous mood tonight"
-                ]
-            elif any(x in msg for x in ["yes", "yeah", "yep", "ok", "sure"]):
-                alternatives = [
-                    "good, i like that",
-                    "thought so",
-                    "cute",
-                    "i knew it",
-                    "that's better"
-                ]
-            elif any(x in msg for x in ["beautiful", "pretty", "cute", "sexy", "hot", "gorgeous"]):
-                alternatives = [
-                    "you're sweet",
-                    "careful, i might believe you",
-                    "smooth lol",
-                    "that was cute",
-                    "you're making me smile"
-                ]
-            else:
-                alternatives = [
-                    "haha you're bold",
-                    "i like your energy",
-                    "you're trouble",
-                    "interesting answer lol",
-                    "noted, dangerous one"
-                ]
-
-        for alt in alternatives:
-            if not is_too_similar_to_recent(alt, history):
-                return alt
-        return random.choice(alternatives)
-
-    return reply
-
 # ==========================================================
 # MAIN REPLY GENERATOR
 # ==========================================================
@@ -879,10 +742,9 @@ def generate_lily_reply(user, message, history=None):
             return {
                 "reply": random.choice([
                     "good, had to check",
-                    "perfect, just had to ask",
-                    "okay good",
-                    "good, i like honest ones",
-                    "perfect, now we can talk"
+                    "good, now behave",
+                    "good, you're safe then",
+                    "okay, cute"
                 ]),
                 "stage": "relation",
                 "client_type": "curious",
@@ -899,7 +761,7 @@ def generate_lily_reply(user, message, history=None):
     direct_reply = deterministic_reply(user, message, stage, language)
     if direct_reply:
         return {
-            "reply": soften_question_loop(direct_reply, message, history, language),
+            "reply": clean_reply(direct_reply),
             "stage": stage,
             "client_type": client_type,
             "interest_score": new_score,
@@ -912,7 +774,7 @@ def generate_lily_reply(user, message, history=None):
     else:
         temp_user = dict(user)
         temp_user["interest_score"] = new_score
-        prompt = build_prompt(temp_user, stage, client_type, message, history=history)
+        prompt = build_prompt(temp_user, stage, client_type, message)
 
         try:
             reply = call_ollama(prompt)
@@ -920,10 +782,8 @@ def generate_lily_reply(user, message, history=None):
             print("Erreur Ollama:", e)
             reply = contextual_fallback_reply(user, message, stage, language)
 
-    reply = soften_question_loop(reply, message, history, language)
-
     return {
-        "reply": reply,
+        "reply": clean_reply(reply),
         "stage": stage,
         "client_type": client_type,
         "interest_score": new_score,
