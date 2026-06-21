@@ -5,7 +5,7 @@ import requests
 from openai import OpenAI
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.5")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5-mini")
 
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -752,8 +752,7 @@ def call_openai(prompt):
     response = openai_client.responses.create(
         model=OPENAI_MODEL,
         input=prompt,
-        max_output_tokens=80,
-        temperature=0.85
+        max_output_tokens=80
     )
 
     return clean_reply(response.output_text)
