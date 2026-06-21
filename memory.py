@@ -93,4 +93,42 @@ def row_to_dict(row):
         "updated_at"
     ]
 
-    return dict(zip(columns, row))
+    return dict(zip(columns, row)) 
+
+def save_message(chat_id, role, content):
+    conn = get_conn()
+    cur = conn.cursor()
+
+    now = datetime.utcnow().isoformat()
+
+    cur.execute("""
+    INSERT INTO messages (chat_id, role, content, created_at)
+    VALUES (%s, %s, %s, %s)
+    """, (chat_id, role, content, now))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+def get_recent_messages(chat_id, limit=20):
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute("""
+    SELECT role, content
+    FROM messages
+    WHERE chat_id = %s
+    ORDER BY id DESC
+    LIMIT %s
+    """, (chat_id, limit))
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return [
+        {"role": row[0], "content": row[1]}
+        for row in rows[::-1]
+    ]
