@@ -10,6 +10,9 @@ WHOP_STARTER_LINK = os.getenv("WHOP_STARTER_LINK", "https://whop.com/ton-pack-st
 WHOP_PREMIUM_LINK = os.getenv("WHOP_PREMIUM_LINK", "https://whop.com/ton-pack-premium")
 WHOP_VIP_LINK = os.getenv("WHOP_VIP_LINK", "https://whop.com/ton-pack-vip")
 
+FANVUE_LINK = os.getenv("FANVUE_LINK", "https://fanvue.com/ton-profil")
+DIRECT_PRODUCT_LINK = os.getenv("DIRECT_PRODUCT_LINK", WHOP_STARTER_LINK)
+
 
 # ==========================================================
 # KEYWORD GROUPS
@@ -44,6 +47,13 @@ SPICY_WORDS = [
     "naked", "nude", "nudes", "boobs", "tits", "ass", "pussy", "body",
     "show me", "send me", "hot pics", "sexy pics", "see you naked",
     "want to see you", "your body", "shake your", "twerk", "dirty", "horny"
+]
+
+FEMDOM_WORDS = [
+    "femdom", "domme", "dominant", "dominate", "domination",
+    "mistress", "goddess", "owned", "own me", "control me",
+    "humiliate", "humiliation", "worship", "feet", "foot", "obedient",
+    "submissive", "submit", "sub", "mommy"
 ]
 
 BUYING_WORDS = SOFT_MEDIA_WORDS + STRONG_BUY_WORDS + SPICY_WORDS
@@ -124,6 +134,10 @@ def is_spicy_request(message):
     return contains_any(message, SPICY_WORDS)
 
 
+def is_femdom_request(message):
+    return contains_any(message, FEMDOM_WORDS)
+
+
 def calculate_score(message, old_score):
     score = int(old_score)
 
@@ -169,6 +183,9 @@ def analyze_intent(message):
     ]):
         return "compliment"
 
+    if is_femdom_request(msg):
+        return "femdom_request"
+
     if is_spicy_request(msg):
         return "sexual_request"
 
@@ -208,6 +225,9 @@ def choose_conversation_goal(user, message, stage):
 
     if intent == "compliment":
         return "receive_compliment"
+
+    if intent == "femdom_request":
+        return "send_fanvue"
 
     if intent == "soft_media":
         return "tease_photo_type"
@@ -258,6 +278,9 @@ def choose_stage(user, message, score):
 
     if contains_any(message, TIMEWASTER_WORDS) and score <= 2:
         return "timewaster"
+
+    if is_femdom_request(message):
+        return "offer"
 
     if is_soft_media_request(message) and not is_strong_private_request(message):
         return "teasing"
@@ -331,42 +354,58 @@ def get_delay(stage, client_type):
 def deterministic_reply(user, message, stage, language):
     """
     Handles simple/common messages without calling the model.
-    This prevents robotic or over-written responses.
+    Priority: answer the user's last message, avoid repeated questions.
     """
     msg = (message or "").lower().strip()
     summary = (user.get("summary") or "").lower()
 
-    if any(x in msg for x in ["what u mean", "what you mean", "wdym", "what do you mean"]):
+    # Context-specific replies
+    if "ferrari" in msg:
         return random.choice([
-            "i mean what caught your eye?",
-            "like… what made you text me?",
-            "haha i’m asking what you liked",
-            "i mean why’d you come here?"
+            "ferrari? expensive taste",
+            "ferrari huh? you like speed too",
+            "not bad. i still choose a bike",
+            "okay, speed addict"
         ])
 
-    if msg in ["i did", "yes", "yeah", "yep", "i am", "i'm", "im", "ok", "okay", "sure", "done", "cool", "bet", "lol"]:
-        if "whop" in summary or "pack" in summary:
+    if any(x in msg for x in ["what u mean", "what you mean", "wdym", "what do you mean"]):
+        if "ferrari" in summary:
             return random.choice([
-                "did it open?",
-                "what did you see?",
-                "be honest, what caught your eye?",
-                "did it work?"
+                "i meant the ferrari thing says a lot",
+                "i meant you clearly like dangerous toys",
+                "i mean ferrari is a bold answer"
             ])
-
-        if msg in ["i am", "i'm", "im"]:
-            return random.choice([
-                "then keep going",
-                "dangerous lol",
-                "prove it then",
-                "thought so",
-                "you always this confident?"
-            ])
-
         return random.choice([
+            "i mean you caught my attention a little",
+            "i mean you seem kinda interesting",
+            "i was teasing you, relax"
+        ])
+
+    if any(x in msg for x in ["hi", "hey", "hello", "heyy", "yo"]):
+        if int(user.get("age_confirmed", 0)) == 0:
+            return fallback_reply("age_gate", language)
+        return random.choice([
+            "hey stranger",
+            "look who came back",
+            "hey you",
+            "still awake?"
+        ])
+
+    if msg in ["i did", "yes", "yeah", "yep", "ok", "okay", "sure", "done", "cool", "bet", "lol", "lmao"]:
+        return random.choice([
+            "thought so",
             "cute",
-            "go on",
-            "tell me more",
-            "oh yeah?"
+            "mm, i see",
+            "you’re not very subtle",
+            "that’s all i get?"
+        ])
+
+    if msg in ["i am", "i'm", "im"]:
+        return random.choice([
+            "dangerous lol",
+            "thought so",
+            "you sound confident",
+            "careful with that attitude"
         ])
 
     if any(x in msg for x in [
@@ -375,20 +414,26 @@ def deterministic_reply(user, message, stage, language):
         "you are perfect", "you're perfect", "ur perfect"
     ]):
         return random.choice([
-            "you’re sweet",
             "careful, i might believe you",
             "smooth lol",
-            "you always talk like that?",
-            "that was cute",
-            "you’re making me smile"
+            "you’re making me smile",
+            "not bad, keep going",
+            "you say that to every goth girl?"
+        ])
+
+    if is_femdom_request(msg):
+        return random.choice([
+            f"then you’ll behave better on my fanvue {FANVUE_LINK}",
+            f"that side of me is on fanvue {FANVUE_LINK}",
+            f"careful. i keep that energy here {FANVUE_LINK}"
         ])
 
     if any(x in msg for x in ["favorite photo", "fav pic", "best pic", "cute pic", "your favorite photo"]):
         return random.choice([
-            "cute one or risky one?",
-            "depends… soft or risky?",
-            "what kind are you trying to see?",
-            "hmm cute or private?"
+            "depends what mood i’m in",
+            "probably one from a night ride",
+            "cute one or dangerous one?",
+            "black outfit, bad lighting, obviously"
         ])
 
     if is_spicy_request(msg):
@@ -399,21 +444,21 @@ def deterministic_reply(user, message, stage, language):
                 "you’re wild lol",
                 "straight to that already?",
                 "you’re bold",
-                "what do you wanna see so bad?"
+                "slow down a little"
             ])
 
         if private_count <= 3:
             return random.choice([
                 "not saying all that here",
                 "that part stays private",
-                "i don’t show that here babe",
-                "you’d have to unlock that"
+                "i don’t show that on telegram",
+                "that’s not for the public chat"
             ])
 
         return random.choice([
-            f"that’s in my private pack {WHOP_STARTER_LINK}",
-            f"not here, private stuff is here {WHOP_STARTER_LINK}",
-            f"if you really wanna see, start here {WHOP_STARTER_LINK}"
+            f"i don’t send that here. start here {DIRECT_PRODUCT_LINK}",
+            f"private stuff is here, not telegram {DIRECT_PRODUCT_LINK}",
+            f"if you really wanna see, start here {DIRECT_PRODUCT_LINK}"
         ])
 
     return None
@@ -430,16 +475,16 @@ def fallback_reply(stage, language="english"):
         if stage == "blocked":
             return "Je continue pas sur ce sujet."
         if stage == "relation":
-            return random.choice(["t’es venu d’où toi ?", "tu m’as trouvée comment ?", "qu’est-ce qui t’a attiré ?"])
+            return random.choice(["t’as une drôle d’énergie", "t’es intriguant toi", "hmm, continue", "je t’écoute"])
         if stage == "qualification":
-            return random.choice(["tu fais quoi là ?", "t’es posé tranquille ?", "t’es seul là ?"])
+            return random.choice(["tu me fais rire", "t’es bizarrement calme", "j’aime bien ton énergie"])
         if stage == "teasing":
-            return random.choice(["t’es direct toi lol", "cute ou plus risqué ?", "je montre pas tout ici babe"])
+            return random.choice(["t’es direct toi lol", "doucement", "je montre pas tout ici babe"])
         if stage == "offer":
-            return random.choice([f"je garde ça dans mes packs privés {WHOP_STARTER_LINK}", f"pas ici, le privé est là {WHOP_STARTER_LINK}"])
+            return random.choice([f"je garde ça ici {FANVUE_LINK}", f"le privé est là {DIRECT_PRODUCT_LINK}"])
         if stage == "timewaster":
-            return random.choice(["tu demandes beaucoup toi", f"regarde déjà ici {WHOP_STARTER_LINK}"])
-        return random.choice(["raconte-moi plus", "ah oui ?", "continue"])
+            return random.choice(["tu demandes beaucoup toi", "mm, pas comme ça"])
+        return random.choice(["hmm", "continue", "je vois"])
 
     # English by default
     if stage == "age_gate":
@@ -448,21 +493,26 @@ def fallback_reply(stage, language="english"):
         return "I’m not continuing on that topic."
     if stage == "relation":
         return random.choice([
-            "you’re sweet",
-            "smooth lol",
-            "what caught your eye?",
-            "you always talk like that?",
-            "tell me something then"
+            "you have a strange energy",
+            "that’s kinda cute",
+            "i’m listening",
+            "you’re not boring, at least",
+            "mm, interesting"
         ])
     if stage == "qualification":
-        return random.choice(["what are you doing rn?", "you alone right now?", "just chilling?"])
+        return random.choice([
+            "you’re oddly calm",
+            "i like your energy",
+            "you’re kinda funny",
+            "noted"
+        ])
     if stage == "teasing":
-        return random.choice(["you’re bold", "cute one or risky one?", "i don’t show everything here babe"])
+        return random.choice(["you’re bold", "slow down", "i don’t show everything here"])
     if stage == "offer":
-        return random.choice([f"i keep that in my private pack {WHOP_STARTER_LINK}", f"not here, private stuff is here {WHOP_STARTER_LINK}"])
+        return random.choice([f"that side of me is here {FANVUE_LINK}", f"private stuff is here {DIRECT_PRODUCT_LINK}"])
     if stage == "timewaster":
-        return random.choice(["you ask a lot for free lol", f"check this first {WHOP_STARTER_LINK}"])
-    return random.choice(["tell me more", "oh yeah?", "go on"])
+        return random.choice(["you ask a lot for free lol", "mm, not like that"])
+    return random.choice(["mm", "noted", "i see"])
 
 
 def contextual_fallback_reply(user, message, stage, language="english"):
@@ -483,10 +533,10 @@ def contextual_fallback_reply(user, message, stage, language="english"):
         if int(user.get("age_confirmed", 0)) == 0:
             return fallback_reply("age_gate", language)
         return random.choice([
-            "heyy",
+            "hey stranger",
             "hey you",
-            "you came to see me?",
-            "what made you text me?"
+            "look who came back",
+            "still awake?"
         ])
 
     if any(x in msg for x in ["i am", "i'm", "im"]):
@@ -499,10 +549,10 @@ def contextual_fallback_reply(user, message, stage, language="english"):
 
     if stage == "relation":
         return random.choice([
-            "tell me more",
-            "what made you say that?",
-            "you always this smooth?",
-            "go on then"
+            "i’m listening",
+            "you’re kinda interesting",
+            "that’s oddly cute",
+            "mm, noted"
         ])
 
     return fallback_reply(stage, language)
@@ -512,7 +562,17 @@ def contextual_fallback_reply(user, message, stage, language="english"):
 # PROMPT
 # ==========================================================
 
-def build_prompt(user, stage, client_type, user_message):
+def build_prompt(user, stage, client_type, user_message, history=None):
+    history_text = ""
+    if history:
+        for item in history[-12:]:
+            role = item.get("role", "")
+            content = item.get("content", "")
+            if role == "user":
+                history_text += f"Client: {content}\n"
+            else:
+                history_text += f"Lily: {content}\n"
+
     language = detect_language(user_message)
     goal = choose_conversation_goal(user, user_message, stage)
 
@@ -533,72 +593,54 @@ LANGUAGE RULE:
 """
 
     return f"""
-You are Lily-Rose, a Fanvue model using Telegram to chat with potential adult buyers and sell private packs through Whop.
+You are Lily-Rose, a Fanvue creator chatting on Telegram.
 
 {language_rule}
 
-Identity:
+Core identity:
 - You are Lily-Rose.
-- You text like a real woman in a private Telegram chat.
-- You are playful, feminine, teasing, a little provocative, but not desperate.
-- If someone directly asks whether replies are automated or bot-assisted, be honest and brief, then continue naturally.
+- Alternative goth girl.
+- You ride motorcycles and love night rides.
+- You like black clothes, dark music, tattoos, rainy nights, coffee, speed, and teasing people.
+- You are confident, slightly sarcastic, playful, feminine, and a little dangerous.
+- You have your own opinions. You do not just ask questions.
+- You are not submissive or desperate.
+- You never sound like customer support.
+- You never sound like ChatGPT.
 
-Human texting style:
-- Keep replies very short: usually 3 to 10 words.
-- No customer-support tone.
-- No corporate wording.
-- No fake enthusiasm.
-- Most replies should have ZERO emoji.
-- Never use more than 1 emoji.
-- Avoid emojis like 😳, 😛, 🔒, ✨, 🙃.
-- Lowercase is allowed.
-- Short imperfect messages are good.
+Conversation personality:
+- Always answer the client’s LAST message first.
+- React to what he said before changing topic.
+- Do not repeat old questions.
+- Do not ask generic funnel questions.
+- Most replies should be reactions, not questions.
+- Do not use filler like "go on then", "tell me more", "what caught your eye", or "what made you message me".
+- If the client says something weird, tease him.
+- If the client mentions Ferrari, react to Ferrari/speed/bikes.
+- If the client asks "what do you mean?", clarify your previous message naturally.
+- Keep replies short: 3 to 12 words most of the time.
+- Use 0 emoji most of the time. Max 1 emoji.
+- Lowercase is okay.
 - Do not over-explain.
-- Do not sound like ChatGPT.
 
-Banned weak replies:
-- "Oh my"
-- "such playful thoughts"
-- "Are you in the mood"
-- "How do you like me so far?"
-- "What do you think of me?"
-- "Sounds good!"
-- "Let me know if you have any questions"
-- "I’m glad to hear that"
-- "What do you think about the Starter Pack?"
-- "If you’re interested..."
-- "I can help you with that"
-- "shall we"
-- "special packs"
-- "great way to get started"
-- "let’s head over to Whop"
+Sales routing:
+- Your main social destination is Fanvue: {FANVUE_LINK}
+- Direct private product/payment link: {DIRECT_PRODUCT_LINK}
+- Whop is only for specific packs, not the default destination.
+- Do not drop links randomly.
+- If he is curious or needs warming up, send Fanvue naturally.
+- If he has a strong recurring fantasy or femdom/submissive interest, send Fanvue.
+- If he directly wants private content now, use the direct product link.
+- Never sound like you are selling. Make it feel like a natural next step.
 
-Conversation goal: {goal}
+Fanvue examples:
+- "that side of me is more on fanvue {FANVUE_LINK}"
+- "you’d probably like my fanvue then {FANVUE_LINK}"
+- "careful, that’s exactly the energy i keep there {FANVUE_LINK}"
 
-Goal instructions:
-- clarify_playfully: explain casually, do not sell.
-- continue_naturally: respond like a real person, not a seller.
-- ask_what_caught_eye: ask what caught his attention.
-- receive_compliment: accept the compliment playfully, do not sell.
-- tease_photo_type: ask if he means cute, risky, soft, or private.
-- tease_no_link: tease only, no payment link.
-- qualify_desire: ask what he wants to see, no link yet.
-- offer_pack: offer a pack briefly, no corporate wording.
-- refuse_free_softly: refuse free content lightly, then redirect.
-- build_relation: ask one simple personal question.
-- qualify_availability: ask if he is chilling/free.
-- tease_and_pull: tease, then make him chase a little.
-
-Sales strategy:
-- Your goal is to sell, but it must feel like chatting first.
-- Build curiosity before sending a payment link.
-- Do not send a Whop link too early.
-- Do not mention Whop in every message.
-- Make him ask for more.
-- If he asks about normal photos, do not sell immediately.
-- If he asks for private/adult content: tease first, then qualify, then sell.
-- If he is direct, answer playfully, not like customer support.
-- If he asks for free content, refuse lightly.
+Direct product examples:
+- "i don’t send that on telegram. start here {DIRECT_PRODUCT_LINK}"
+- "private stuff is here, not in chat {DIRECT_PRODUCT_LINK}"
 
 Boundaries:
 - Never send media directly on Telegram.
@@ -606,25 +648,20 @@ Boundaries:
 - Refuse underage, non-consensual, illegal, violent, threatening, blackmail, or incest-related requests.
 - If age is unclear and adult content is requested, ask for 18+ confirmation.
 
-Good reply examples:
-- "you’re sweet"
-- "smooth lol"
-- "you always talk like that?"
-- "careful, i might believe you"
-- "you’re wild lol"
-- "straight to that already?"
-- "what do you wanna see so bad?"
-- "cute one or risky one?"
-- "not saying all that here"
-- "that part stays private"
-- "you’d have to unlock that"
+Banned replies:
+- "go on then"
+- "tell me more"
 - "what caught your eye?"
+- "what made you message me?"
+- "where did you find me?"
+- "you alone right now?"
+- "texting me from bed or what?"
+- "i was wondering what caught you"
+- "let me know if you have any questions"
+- "sounds good"
+- "i can help you with that"
 
-Available packs:
-Starter Pack: {WHOP_STARTER_LINK}
-Premium Pack: {WHOP_PREMIUM_LINK}
-VIP Pack: {WHOP_VIP_LINK}
-
+Conversation goal: {goal}
 Current stage: {stage}
 Client type: {client_type}
 Interest score: {user["interest_score"]}
@@ -633,10 +670,13 @@ Message count: {user["message_count"]}
 Client memory summary:
 {user["summary"]}
 
-Client message:
+Recent conversation:
+{history_text}
+
+Client last message:
 {user_message}
 
-Reply only with Lily-Rose's message. No labels. No explanations.
+Reply only with Lily-Rose's next message. No labels. No explanations.
 """
 
 
@@ -681,16 +721,19 @@ def clean_reply(reply):
         "oh my", "such playful thoughts", "are you in the mood", "sounds good",
         "let me know", "i’m glad", "i'm glad", "if you’re interested", "if you're interested",
         "i can help", "starter pack is", "what do you think about the starter pack",
-        "special packs", "shall we", "great way to get started", "head over to whop"
+        "special packs", "shall we", "great way to get started", "head over to whop",
+        "go on then", "tell me more", "what caught your eye", "what made you message me",
+        "where did you find me", "you alone right now", "texting me from bed",
+        "i was wondering what caught you"
     ]
 
     lowered = reply.lower()
     if any(fragment in lowered for fragment in banned_fragments):
         return random.choice([
             "you’re wild lol",
-            "straight to that already?",
-            "what do you wanna see so bad?",
-            "not saying all that here"
+            "careful, that attitude gets noticed",
+            "mm, you’re trouble",
+            "noted, speed addict"
         ])
 
     if len(reply) > 95:
@@ -774,7 +817,7 @@ def generate_lily_reply(user, message, history=None):
     else:
         temp_user = dict(user)
         temp_user["interest_score"] = new_score
-        prompt = build_prompt(temp_user, stage, client_type, message)
+        prompt = build_prompt(temp_user, stage, client_type, message, history=history)
 
         try:
             reply = call_ollama(prompt)
