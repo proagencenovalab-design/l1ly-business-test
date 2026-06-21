@@ -32,7 +32,8 @@ def telegram_post(method, payload):
 def get_updates(offset=None, timeout=50):
     params = {
         "timeout": timeout,
-        "allowed_updates": ["message", "business_message", "business_connection"]
+        # On accepte les messages Business ET les messages directs au bot.
+        "allowed_updates": ["business_message", "message", "business_connection"]
     }
 
     if offset is not None:
@@ -48,15 +49,6 @@ def get_updates(offset=None, timeout=50):
     return response.json()
 
 
-def send_normal_message(chat_id, text):
-    payload = {
-        "chat_id": chat_id,
-        "text": text,
-        "disable_web_page_preview": True
-    }
-    return telegram_post("sendMessage", payload)
-
-
 def send_business_message(chat_id, text, business_connection_id):
     payload = {
         "chat_id": chat_id,
@@ -67,15 +59,20 @@ def send_business_message(chat_id, text, business_connection_id):
     return telegram_post("sendMessage", payload)
 
 
+def send_normal_message(chat_id, text):
+    payload = {
+        "chat_id": chat_id,
+        "text": text,
+        "disable_web_page_preview": True
+    }
+    return telegram_post("sendMessage", payload)
+
+
 def process_message(message, is_business=False):
     text = message.get("text", "")
 
     if not text:
-        return
-
-    # Ignore Telegram commands in normal bot chat except /start.
-    # /start is useful for testing.
-    if text.startswith("/") and text.strip() != "/start":
+        print("Message ignoré : pas de texte.", flush=True)
         return
 
     chat = message.get("chat", {})
@@ -85,15 +82,20 @@ def process_message(message, is_business=False):
     business_connection_id = message.get("business_connection_id")
 
     if not chat_id:
+        print("Message ignoré : chat_id manquant.", flush=True)
+        return
+
+    if is_business and not business_connection_id:
+        print("Message Business ignoré : business_connection_id manquant.", flush=True)
         return
 
     username = chat.get("username") or sender.get("username") or ""
     first_name = chat.get("first_name") or sender.get("first_name") or ""
 
     print("\n==============================", flush=True)
+    print("TYPE MESSAGE :", "business_message" if is_business else "message normal", flush=True)
     print(f"Message reçu : {text}", flush=True)
     print(f"De : {username or first_name or chat_id}", flush=True)
-    print(f"Mode : {'business' if is_business else 'normal'}", flush=True)
     print("==============================", flush=True)
 
     user = get_or_create_user(
@@ -102,16 +104,13 @@ def process_message(message, is_business=False):
         first_name=first_name
     )
 
-    # If the user sends /start in normal bot mode, turn it into a natural opener.
-    clean_text = "hey" if text.strip() == "/start" else text
-
-    save_message(chat_id, "user", clean_text)
+    save_message(chat_id, "user", text)
 
     history = get_recent_messages(chat_id, limit=20)
 
     print("HISTORY:", history, flush=True)
 
-    result = generate_lily_reply(user, clean_text, history=history)
+    result = generate_lily_reply(user, text, history=history)
 
     print(f"Stage : {result['stage']}", flush=True)
     print(f"Type client : {result['client_type']}", flush=True)
@@ -122,7 +121,7 @@ def process_message(message, is_business=False):
 
     time.sleep(int(result["delay"]))
 
-    if is_business and business_connection_id:
+    if is_business:
         tg_response = send_business_message(
             chat_id=chat_id,
             text=result["reply"],
@@ -139,7 +138,7 @@ def process_message(message, is_business=False):
     save_message(chat_id, "assistant", result["reply"])
 
     old_summary = user.get("summary") or ""
-    new_summary = (old_summary + f"\nClient: {clean_text}\nLily: {result['reply']}").strip()
+    new_summary = (old_summary + f"\nClient: {text}\nLily: {result['reply']}").strip()
 
     if len(new_summary) > 1800:
         new_summary = new_summary[-1800:]
@@ -150,7 +149,7 @@ def process_message(message, is_business=False):
         client_type=result["client_type"],
         interest_score=result["interest_score"],
         age_confirmed=result["age_confirmed"],
-        last_message=clean_text,
+        last_message=text,
         summary=new_summary,
         username=username,
         first_name=first_name
@@ -159,14 +158,23 @@ def process_message(message, is_business=False):
 
 def handle_business_message(update):
     message = update.get("business_message")
-    if message:
-        process_message(message, is_business=True)
+    if not message:
+        return
+    process_message(message, is_business=True)
 
 
 def handle_normal_message(update):
     message = update.get("message")
-    if message:
-        process_message(message, is_business=False)
+    if not message:
+        return
+
+    # Ignore les messages envoyés par des bots pour éviter des boucles.
+    sender = message.get("from", {})
+    if sender.get("is_bot"):
+        print("Message normal ignoré : envoyé par un bot.", flush=True)
+        return
+
+    process_message(message, is_business=False)
 
 
 def main():
@@ -190,18 +198,26 @@ def main():
 
             updates = data.get("result", [])
 
-            for update in updates:
-                offset = update["update_id"] + 1
+            if updates:
+                print(f"Nombre d'updates reçues : {len(updates)}", flush=True)
 
-                if "business_connection" in update:
-                    connection = update.get("business_connection", {})
-                    print("Business connection reçue:", connection, flush=True)
+            for update in updates:
+                print("UPDATE RECU :", update, flush=True)
+
+                offset = update["update_id"] + 1
 
                 if "business_message" in update:
                     handle_business_message(update)
 
                 elif "message" in update:
                     handle_normal_message(update)
+
+                elif "business_connection" in update:
+                    connection = update.get("business_connection", {})
+                    print("Business connection reçue:", connection, flush=True)
+
+                else:
+                    print("Update ignorée, type inconnu :", update, flush=True)
 
         except KeyboardInterrupt:
             print("Arrêt manuel.", flush=True)
