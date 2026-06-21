@@ -1,14 +1,21 @@
-import sqlite3
+import os
+import psycopg2
 from datetime import datetime
 
-DB_PATH = "lily_memory.db"
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+
+def get_conn():
+    if not DATABASE_URL:
+        raise RuntimeError("DATABASE_URL manquant. Ajoute-le dans Railway Variables.")
+    return psycopg2.connect(DATABASE_URL)
 
 
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn = get_conn()
+    cur = conn.cursor()
 
-    cursor.execute("""
+    cur.execute("""
     CREATE TABLE IF NOT EXISTS users (
         chat_id TEXT PRIMARY KEY,
         username TEXT,
@@ -25,32 +32,58 @@ def init_db():
     )
     """)
 
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS messages (
+        id SERIAL PRIMARY KEY,
+        chat_id TEXT,
+        role TEXT NOT NULL,
+        content TEXT NOT NULL,
+        created_at TEXT
+    )
+    """)
+
     conn.commit()
+    cur.close()
     conn.close()
+
+
+def row_to_dict(row):
+    if row is None:
+        return None
+
+    columns = [
+        "chat_id", "username", "first_name", "stage", "client_type",
+        "interest_score", "age_confirmed", "message_count",
+        "last_message", "summary", "created_at", "updated_at"
+    ]
+
+    return dict(zip(columns, row))
 
 
 def get_or_create_user(chat_id, username="", first_name=""):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn = get_conn()
+    cur = conn.cursor()
 
-    cursor.execute("SELECT * FROM users WHERE chat_id = ?", (str(chat_id),))
-    row = cursor.fetchone()
+    cur.execute("SELECT * FROM users WHERE chat_id = %s", (str(chat_id),))
+    row = cur.fetchone()
 
     now = datetime.utcnow().isoformat()
 
-    if not row:
-        cursor.execute("""
+    if row is None:
+        cur.execute("""
         INSERT INTO users (
             chat_id, username, first_name, created_at, updated_at
         )
-        VALUES (?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s)
         """, (str(chat_id), username, first_name, now, now))
+
         conn.commit()
 
-    cursor.execute("SELECT * FROM users WHERE chat_id = ?", (str(chat_id),))
-    row = cursor.fetchone()
-    conn.close()
+        cur.execute("SELECT * FROM users WHERE chat_id = %s", (str(chat_id),))
+        row = cur.fetchone()
 
+    cur.close()
+    conn.close()
     return row_to_dict(row)
 
 
@@ -58,53 +91,39 @@ def update_user(chat_id, **kwargs):
     if not kwargs:
         return
 
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    conn = get_conn()
+    cur = conn.cursor()
 
     kwargs["updated_at"] = datetime.utcnow().isoformat()
 
-    fields = ", ".join([f"{key} = ?" for key in kwargs.keys()])
+    fields = ", ".join([f"{key} = %s" for key in kwargs.keys()])
     values = list(kwargs.values())
     values.append(str(chat_id))
 
-    cursor.execute(f"""
+    cur.execute(f"""
     UPDATE users
     SET {fields}
-    WHERE chat_id = ?
+    WHERE chat_id = %s
     """, values)
 
     conn.commit()
+    cur.close()
     conn.close()
 
-
-def row_to_dict(row):
-    columns = [
-        "chat_id",
-        "username",
-        "first_name",
-        "stage",
-        "client_type",
-        "interest_score",
-        "age_confirmed",
-        "message_count",
-        "last_message",
-        "summary",
-        "created_at",
-        "updated_at"
-    ]
-
-    return dict(zip(columns, row)) 
 
 def save_message(chat_id, role, content):
     conn = get_conn()
     cur = conn.cursor()
 
-    now = datetime.utcnow().isoformat()
-
     cur.execute("""
     INSERT INTO messages (chat_id, role, content, created_at)
     VALUES (%s, %s, %s, %s)
-    """, (chat_id, role, content, now))
+    """, (
+        str(chat_id),
+        role,
+        content,
+        datetime.utcnow().isoformat()
+    ))
 
     conn.commit()
     cur.close()
@@ -121,7 +140,10 @@ def get_recent_messages(chat_id, limit=20):
     WHERE chat_id = %s
     ORDER BY id DESC
     LIMIT %s
-    """, (chat_id, limit))
+    """, (
+        str(chat_id),
+        limit
+    ))
 
     rows = cur.fetchall()
 
