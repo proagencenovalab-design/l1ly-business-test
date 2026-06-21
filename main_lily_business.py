@@ -99,7 +99,7 @@ def handle_business_message(update):
 
     print("HISTORY:", history, flush=True)
 
-    result = generate_lily_reply(user, text)
+    result = generate_lily_reply(user, text, history=history)
 
     print(f"Stage : {result['stage']}", flush=True)
     print(f"Type client : {result['client_type']}", flush=True)
