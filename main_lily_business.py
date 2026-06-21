@@ -1,157 +1,191 @@
 import os
-import time
-import requests
+import psycopg2
+from datetime import datetime
 
-from memory import init_db, get_or_create_user, update_user, save_message, get_recent_messages
-from agent import generate_lily_reply
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
-API_BASE = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 
-if not TELEGRAM_BOT_TOKEN:
-    raise RuntimeError("TELEGRAM_BOT_TOKEN is missing. Add it in Railway Variables.")
+def get_conn():
+    if not DATABASE_URL:
+        raise RuntimeError("DATABASE_URL manquant. Ajoute-le dans Railway Variables.")
+    return psycopg2.connect(DATABASE_URL)
 
-def telegram_post(method, payload):
-    response = requests.post(f"{API_BASE}/{method}", json=payload, timeout=30)
-    try:
-        data = response.json()
-    except Exception:
-        data = {"ok": False, "raw": response.text}
-    return data
 
-def get_updates(offset=None, timeout=50):
-    params = {
-        "timeout": timeout,
-        "allowed_updates": ["business_message", "message", "business_connection"]
-    }
-    if offset is not None:
-        params["offset"] = offset
+def init_db():
+    conn = get_conn()
+    cur = conn.cursor()
 
-    response = requests.get(f"{API_BASE}/getUpdates", params=params, timeout=timeout + 10)
-    response.raise_for_status()
-    return response.json()
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS users (
+        chat_id TEXT PRIMARY KEY,
+        username TEXT,
+        first_name TEXT,
+        stage TEXT DEFAULT 'new',
+        client_type TEXT DEFAULT 'unknown',
+        interest_score INTEGER DEFAULT 0,
+        age_confirmed INTEGER DEFAULT 0,
+        message_count INTEGER DEFAULT 0,
+        last_message TEXT,
+        summary TEXT DEFAULT '',
+        created_at TEXT,
+        updated_at TEXT
+    )
+    """)
 
-def send_business_message(chat_id, text, business_connection_id):
-    payload = {
-        "chat_id": chat_id,
-        "text": text,
-        "business_connection_id": business_connection_id,
-        "disable_web_page_preview": True
-    }
-    return telegram_post("sendMessage", payload)
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS messages (
+        id SERIAL PRIMARY KEY,
+        chat_id TEXT,
+        role TEXT NOT NULL,
+        content TEXT NOT NULL,
+        created_at TEXT
+    )
+    """)
 
-def handle_business_message(update):
-    message = update.get("business_message")
-    if not message:
-        return
+    conn.commit()
+    cur.close()
+    conn.close()
 
-    text = message.get("text", "")
-    if not text:
-        return
 
-    chat = message.get("chat", {})
-    sender = message.get("from", {})
-    chat_id = str(chat.get("id"))
-    business_connection_id = message.get("business_connection_id")
+def row_to_dict(row):
+    if row is None:
+        return None
 
-    if not chat_id or not business_connection_id:
-        return
+    columns = [
+        "chat_id",
+        "username",
+        "first_name",
+        "stage",
+        "client_type",
+        "interest_score",
+        "age_confirmed",
+        "message_count",
+        "last_message",
+        "summary",
+        "created_at",
+        "updated_at"
+    ]
 
-    username = chat.get("username") or sender.get("username") or ""
-    first_name = chat.get("first_name") or sender.get("first_name") or ""
+    return dict(zip(columns, row))
 
-    print("\n==============================", flush=True)
-    print(f"Message reçu : {text}", flush=True)
-    print(f"De : {username or first_name or chat_id}", flush=True)
-    print("==============================", flush=True)
 
-    user = get_or_create_user(
-        chat_id=chat_id,
-        username=username,
-        first_name=first_name
+def get_or_create_user(chat_id, username="", first_name=""):
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute(
+        "SELECT * FROM users WHERE chat_id = %s",
+        (str(chat_id),)
     )
 
-    # Sauvegarde le message client dans PostgreSQL.
-    save_message(chat_id, "user", text)
+    row = cur.fetchone()
+    now = datetime.utcnow().isoformat()
 
-    # Charge les 20 derniers messages pour éviter les répétitions
-    # et permettre à Lily de reprendre le contexte naturellement.
-    history = get_recent_messages(chat_id, limit=20)
+    if row is None:
+        cur.execute("""
+        INSERT INTO users (
+            chat_id,
+            username,
+            first_name,
+            created_at,
+            updated_at
+        )
+        VALUES (%s, %s, %s, %s, %s)
+        """, (
+            str(chat_id),
+            username,
+            first_name,
+            now,
+            now
+        ))
 
-    result = generate_lily_reply(user, text, history=history)
+        conn.commit()
 
-    print(f"Stage : {result['stage']}", flush=True)
-    print(f"Type client : {result['client_type']}", flush=True)
-    print(f"Score : {result['interest_score']}", flush=True)
-    print(f"Âge confirmé : {result['age_confirmed']}", flush=True)
-    print(f"Réponse dans {result['delay']} secondes", flush=True)
-    print(f"Réponse : {result['reply']}", flush=True)
+        cur.execute(
+            "SELECT * FROM users WHERE chat_id = %s",
+            (str(chat_id),)
+        )
 
-    time.sleep(int(result["delay"]))
+        row = cur.fetchone()
 
-    tg_response = send_business_message(
-        chat_id=chat_id,
-        text=result["reply"],
-        business_connection_id=business_connection_id
+    cur.close()
+    conn.close()
+
+    return row_to_dict(row)
+
+
+def update_user(chat_id, **kwargs):
+    if not kwargs:
+        return
+
+    conn = get_conn()
+    cur = conn.cursor()
+
+    kwargs["updated_at"] = datetime.utcnow().isoformat()
+
+    fields = ", ".join([f"{key} = %s" for key in kwargs.keys()])
+    values = list(kwargs.values())
+    values.append(str(chat_id))
+
+    cur.execute(f"""
+    UPDATE users
+    SET {fields}
+    WHERE chat_id = %s
+    """, values)
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+
+def save_message(chat_id, role, content):
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute("""
+    INSERT INTO messages (
+        chat_id,
+        role,
+        content,
+        created_at
     )
+    VALUES (%s, %s, %s, %s)
+    """, (
+        str(chat_id),
+        role,
+        content,
+        datetime.utcnow().isoformat()
+    ))
 
-    print(f"Réponse Telegram: {tg_response}", flush=True)
+    conn.commit()
+    cur.close()
+    conn.close()
 
-    # Sauvegarde la réponse de Lily dans PostgreSQL.
-    save_message(chat_id, "assistant", result["reply"])
 
-    old_summary = user.get("summary") or ""
-    new_summary = (old_summary + f"\nClient: {text}\nLily: {result['reply']}").strip()
+def get_recent_messages(chat_id, limit=20):
+    conn = get_conn()
+    cur = conn.cursor()
 
-    # Garde la mémoire courte pour éviter une DB trop lourde.
-    if len(new_summary) > 1800:
-        new_summary = new_summary[-1800:]
+    cur.execute("""
+    SELECT role, content
+    FROM messages
+    WHERE chat_id = %s
+    ORDER BY id DESC
+    LIMIT %s
+    """, (
+        str(chat_id),
+        int(limit)
+    ))
 
-    update_user(
-        chat_id=chat_id,
-        stage=result["stage"],
-        client_type=result["client_type"],
-        interest_score=result["interest_score"],
-        age_confirmed=result["age_confirmed"],
-        last_message=text,
-        summary=new_summary,
-        username=username,
-        first_name=first_name
-    )
+    rows = cur.fetchall()
 
-def main():
-    init_db()
-    print("Agent Lily Business lancé.", flush=True)
-    print("En attente de messages Telegram Business...", flush=True)
+    cur.close()
+    conn.close()
 
-    offset = None
-
-    while True:
-        try:
-            data = get_updates(offset=offset, timeout=50)
-
-            if not data.get("ok"):
-                print(f"Erreur Telegram: {data}", flush=True)
-                time.sleep(5)
-                continue
-
-            for update in data.get("result", []):
-                offset = update["update_id"] + 1
-
-                if "business_message" in update:
-                    handle_business_message(update)
-
-                elif "business_connection" in update:
-                    connection = update.get("business_connection", {})
-                    print("Business connection reçue:", connection, flush=True)
-
-        except KeyboardInterrupt:
-            print("Arrêt manuel.", flush=True)
-            break
-
-        except Exception as e:
-            print("Erreur boucle principale:", repr(e), flush=True)
-            time.sleep(5)
-
-if __name__ == "__main__":
-    main()
+    return [
+        {
+            "role": row[0],
+            "content": row[1]
+        }
+        for row in rows[::-1]
+    ]
