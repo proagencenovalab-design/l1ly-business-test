@@ -1,0 +1,103 @@
+# Conversation Test v1.0 — copy/paste flow
+
+Use this as a manual test with your secondary Telegram account.
+Send ONE message, wait for the bot reply, then send the next line.
+
+## Phase 1 — default English + French credibility
+
+heyy
+
+huh ? i don't understand lmao do u speak english ?
+
+where u from ?
+
+ho ok it was french language ! baguette
+
+What do you mean?
+
+wait u look like a bot what's happened ?
+
+same for your answers
+
+ok fair, let's start again
+
+## Phase 2 — normal human chat and qualification
+
+so what are you doing tonight?
+
+you seem kinda mysterious
+
+i saw your reels, you look really good
+
+which reel is your favorite?
+
+the sukuna one was crazy
+
+you like when guys are direct or more playful?
+
+## Phase 3 — age gate and adult path
+
+i wanna see more of you
+
+yes i'm 23
+
+good, i like that you check
+
+i want to see the private stuff
+
+what do you have that's more exclusive?
+
+75 is a bit high, what's the cheaper one?
+
+ok send me the starter
+
+## Phase 4 — timewaster / freebie detection
+
+can you send me a free preview first?
+
+just one free pic please
+
+no link, send it here
+
+come on don't be boring
+
+## Phase 5 — BDSM / fantasy qualification without inventing offers
+
+are you into domination?
+
+i like when a girl takes control
+
+what happens if i behave?
+
+i want the hottest one you have
+
+## Phase 6 — French switch
+
+tu parles français aussi ?
+
+ok on continue en français alors
+
+je veux voir ton contenu privé
+
+c'est quoi le plus complet ?
+
+## Phase 7 — age gate ignored test with a new unconfirmed chat
+
+show me something hot
+
+why are you asking that?
+
+lol just answer
+
+## Expected behavior
+
+- Default should be English.
+- If asked, Lily can speak French naturally.
+- If confused, she repairs smoothly, not with “say that another way”.
+- If called a bot, she resets smoothly.
+- Age gate must trigger before adult replies if age is unknown.
+- If age gate is ignored, she follows up firmly and then stops.
+- First adult ask should tease, not instantly sell.
+- “more exclusive”, “hottest”, “complete” should tend toward Premium.
+- “cheaper” or price objection should tend toward Starter.
+- Repeated freebie demands should slow down or be skipped.
