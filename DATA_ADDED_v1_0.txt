@@ -1,0 +1,67 @@
+# Data Added to Lily Business Bot v1.0
+
+## Imported into agent.py
+
+1. Cialdini influence principles adapted to Telegram chatting
+- liking
+- scarcity
+- reciprocity
+- commitment/consistency
+- social proof without fake claims
+- authority/confidence
+- unity/private vibe
+
+2. SPIN selling adapted to adult-content chat
+- situation
+- problem/desire
+- implication
+- need-payoff
+- no survey tone
+
+3. Objection handling process
+- pause
+- validate
+- clarify
+- reframe
+- close with choice
+- stop pushing after repeated refusal
+
+4. American male buyer segmentation
+- direct visual buyer
+- premium heat seeker
+- freebie seeker
+- trust skeptic
+- lonely connection buyer
+- playful challenger
+- submissive/domination interest
+- dominant buyer
+- price-sensitive buyer
+- high-intent closer
+
+5. Chat flow library
+- openings
+- language repair
+- confusion repair
+- adult age gate
+- teasing progression
+- offer timing
+
+6. Objection map
+- price
+- trust
+- free preview
+- wants Telegram only
+- too fast/too sexual
+- BDSM
+
+7. Quality check before sending
+- no robotic fallback
+- no AI/bot/technical reveal
+- no wrong-language reply
+- no fake offer
+- no sale before age confirmation
+- recovery AI if quality fails
+
+## Not directly imported
+
+The two YouTube links `CO2r19gAjxw` and `5PRNAkzLnz0` were not reliably identifiable through public search snippets, so no direct claims from their content were added.
